@@ -10,7 +10,9 @@ import pandas as pd
 def run_eda(project_root: Path) -> None:
     path = project_root / "data" / "ratings.parquet"
     if not path.exists():
-        raise FileNotFoundError(f"Missing {path}; run run_data_loading.py first.")
+        raise FileNotFoundError(
+            f"Missing {path}; run `python -m netflix_recommender data-loading` first (after `pip install -e .`)."
+        )
     ratings = pd.read_parquet(path)
     print("Shape:", ratings.shape)
     print("Columns:", list(ratings.columns))

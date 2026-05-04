@@ -21,7 +21,7 @@ Mitchell et al. (2019) style summary for the **best offline model in this repo**
 ## 2. Intended use
 
 - Offline baseline for explicit-feedback ranking on the Netflix Prize probe split.
-- Teaching / portfolio reference for hybrid matrix factorisation + item similarity.
+- Reference hybrid: matrix factorisation plus item–item residual correction.
 
 **Not for:** implicit-only streams, cold-start without a separate policy, credit/health/hiring decisions, or production deployment without a new evaluation on your own data.
 

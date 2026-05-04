@@ -1,0 +1,67 @@
+# --- macOS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Virtual envs ---
+.venv/
+venv/
+env/
+.env
+.envrc
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# --- Project data (NEVER commit raw data) ---
+# Netflix Prize raw files; download separately, see README §Quickstart
+projects/netflix-recommender/dataset/
+projects/netflix-recommender/data/
+dataset/
+data/
+*.parquet
+*.feather
+*.h5
+*.pkl
+
+# --- Project outputs that are too large or regenerable ---
+# Keep small figures (.png) so the README renders on GitHub.
+projects/**/outputs/**/*.parquet
+projects/**/outputs/**/*.html
+projects/**/outputs/**/*.csv
+!projects/netflix-recommender/outputs/04_clustering/algorithm_comparison.csv
+
+# --- Adjacent personal-portfolio assets, not for this repo ---
+Customer360_Analytics_Platform*.pptx
+Cloud Engineering*.pptx
+*.backup.pptx
+*.slide?backup.pptx
+deck_build/
+charts/
+
+# Local upload checklist (omit from git history)
+GITHUB_UPLOAD_GUIDE.md
+
+# --- Logs / temp ---
+*.log
+*.tmp
+.cache/
+
+# --- Local graphify artefacts (regenerate with graphify) ---
+graphify-out/

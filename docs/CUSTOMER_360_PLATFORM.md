@@ -12,7 +12,7 @@
 > The churn model itself is planned, not yet built — see
 > [§ Honest scope](#honest-scope) below.
 
-![Architecture](architecture/Customer360_Architecture.png)
+![Architecture](../architecture/Customer360_Architecture.png)
 
 ---
 

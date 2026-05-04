@@ -4,5 +4,5 @@ from pathlib import Path
 
 
 def project_root() -> Path:
-    """Return the `projects/netflix-recommender` directory (contains notebooks/, data/, dataset/)."""
+    """Repository root: contains `src/`, `data/`, `dataset/`, `notebooks/`, `outputs/`."""
     return Path(__file__).resolve().parent.parent.parent

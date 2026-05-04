@@ -30,9 +30,6 @@ env/
 *.nbconvert.ipynb
 
 # --- Project data (NEVER commit raw data) ---
-# Netflix Prize raw files; download separately, see README §Quickstart
-projects/netflix-recommender/dataset/
-projects/netflix-recommender/data/
 dataset/
 data/
 *.parquet
@@ -40,12 +37,11 @@ data/
 *.h5
 *.pkl
 
-# --- Project outputs that are too large or regenerable ---
-# Keep small figures (.png) so the README renders on GitHub.
-projects/**/outputs/**/*.parquet
-projects/**/outputs/**/*.html
-projects/**/outputs/**/*.csv
-!projects/netflix-recommender/outputs/04_clustering/algorithm_comparison.csv
+# --- Outputs: keep PNGs + one small CSV for README ---
+outputs/**/*.parquet
+outputs/**/*.html
+outputs/**/*.csv
+!outputs/04_clustering/algorithm_comparison.csv
 
 # --- Adjacent personal-portfolio assets, not for this repo ---
 Customer360_Analytics_Platform*.pptx
@@ -55,9 +51,6 @@ Cloud Engineering*.pptx
 deck_build/
 charts/
 
-# Local upload checklist (omit from git history)
-GITHUB_UPLOAD_GUIDE.md
-
 # --- Logs / temp ---
 *.log
 *.tmp
@@ -65,3 +58,6 @@ GITHUB_UPLOAD_GUIDE.md
 
 # --- Local graphify artefacts (regenerate with graphify) ---
 graphify-out/
+
+# Local upload checklist (omit from git history)
+GITHUB_UPLOAD_GUIDE.md

@@ -104,7 +104,7 @@ production ML role or an AI-product / strategy role.
 
 ```
 .
-├── README.md                       <- you are here
+├── README.md                       <- portfolio entry (repo root)
 ├── README_academic.md              <- original course-project README, preserved
 ├── ARCHITECTURE.md                 <- production AWS architecture + cost model
 ├── MODEL_CARD.md                   <- Mitchell-template model card
@@ -113,7 +113,12 @@ production ML role or an AI-product / strategy role.
 │
 ├── src/netflix_recommender/        <- importable pipeline (data, EDA, recommend, cluster, RFM)
 │
+├── architecture/                   <- Customer 360 diagram source (.drawio)
 ├── docs/
+│   ├── ETL_TO_ARCHITECTURE.md      <- glue: ETL → RFM → enterprise design
+│   ├── NETFLIX_PIPELINE.md         <- this document (modelling deep dive)
+│   ├── CUSTOMER_360_PLATFORM.md
+│   ├── RESUME_BULLETS.md
 │   ├── API.md                      <- REST API contract for the serving layer
 │   ├── MLOPS.md                    <- training pipeline, monitoring, retraining
 │   └── assignment/                 <- original course briefs (Chinese + English)
@@ -123,7 +128,8 @@ production ML role or an AI-product / strategy role.
 │   ├── 02_eda.ipynb
 │   ├── 03_recommendation.ipynb
 │   ├── 04_clustering.ipynb
-│   └── 05_rfm_analysis.ipynb
+│   ├── 05_rfm_analysis.ipynb
+│   └── 06_architecture_bridge.ipynb
 │
 ├── run_data_loading.py             <- CLI: raw .txt → Parquet
 ├── run_eda.py                      <- CLI: summary tables
@@ -136,9 +142,9 @@ production ML role or an AI-product / strategy role.
     └── 05_rfm_analysis/            <- treemap, heatmap, scatter, segments parquet
 ```
 
-`README_academic.md` preserves the original course deliverable's framing;
-this README is the portfolio-grade reframing for engineers, hiring
-managers, and AI-product reviewers.
+`README_academic.md` preserves the original course deliverable's framing.
+The repo root **`README.md`** is the unified portfolio narrative; **this
+file** is the modelling + CLI deep dive for the Netflix Prize track.
 
 ---
 
@@ -188,10 +194,10 @@ See `outputs/05_rfm_analysis/` for the figures and
 
 The Netflix Prize dataset is publicly available on Kaggle:
 <https://www.kaggle.com/datasets/netflix-inc/netflix-prize-data>. Unpack
-into **this directory** (`projects/netflix-recommender/`) so the layout is:
+into the **repository root** (same folder as `README.md` and `requirements.txt`):
 
 ```
-projects/netflix-recommender/
+./
 ├── dataset/
 │   ├── training_set/        # 17,770 files mv_*.txt
 │   ├── movie_titles.txt
@@ -214,7 +220,6 @@ Tested on Python 3.11. Main dependencies: `pandas`, `numpy`, `scipy`,
 ### 3. Build the dataset
 
 ```bash
-cd projects/netflix-recommender
 python run_data_loading.py            # produces data/ratings.parquet, data/probe.parquet
 ```
 

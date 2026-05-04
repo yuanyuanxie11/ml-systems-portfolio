@@ -1,16 +1,16 @@
-# From Notebook to Production — Two AWS ML Case Studies
+# ML Systems Portfolio — From ETL to Architecture (One Repo)
 
-> A personal portfolio of two production-grade ML systems built end-to-end on
-> AWS: a Netflix-scale **recommender** and a **Customer 360 churn + segmentation
-> platform**. Each one ships not just a model, but the full bridge —
-> architecture, model card, signed API, MLOps spec, line-item cost model, and
-> a drift-to-retrain policy. The point isn't either model on its own; it's
-> that the same production discipline is applied twice, to two different
-> problem classes, on the same cloud.
+> **One continuous story:** ingest and curate behavioural data (ETL), build
+> **recommendations** and **segmentation** (RFM + clustering) on a public
+> corpus, then **connect those artefacts to AWS architectures** — first for
+> a Netflix-style recommender at scale, then for an enterprise **Customer 360**
+> platform. Same production muscles (medallion storage, SageMaker, DynamoDB,
+> API + SLOs, model card, MLOps, cost model); the dataset is the teaching lab,
+> the Customer 360 doc is the same pattern at enterprise breadth.
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
-![Probe RMSE 0.9491](https://img.shields.io/badge/Netflix%20probe%20RMSE-0.9491-brightgreen.svg)
-![Customer 360 Architecture](https://img.shields.io/badge/Customer%20360-7%20swim%20lanes-blueviolet.svg)
+![Probe RMSE 0.9491](https://img.shields.io/badge/probe%20RMSE-0.9491-brightgreen.svg)
+![ETL → RFM → AWS](https://img.shields.io/badge/pipeline-ETL%20%E2%86%92%20segmentation%20%E2%86%92%20architecture-blueviolet.svg)
 ![AWS](https://img.shields.io/badge/cloud-AWS-orange.svg)
 ![License MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 
@@ -18,354 +18,184 @@
 
 ## Contents
 
-1. [TL;DR](#tldr)
-2. [Why this portfolio](#why-this-portfolio)
-3. [The two projects at a glance](#the-two-projects-at-a-glance)
-4. [Repository layout](#repository-layout)
-5. [What's the same across both — the production discipline](#whats-the-same-across-both--the-production-discipline)
-6. [Project 1 — Netflix recommender](#project-1--netflix-recommender)
-7. [Project 2 — Customer 360 churn + segmentation](#project-2--customer-360-churn--segmentation)
-8. [Quickstart](#quickstart)
-9. [What I'd do next](#what-id-do-next)
-10. [Honest limits](#honest-limits)
-11. [Credits and license](#credits-and-license)
+1. [The single pipeline (at a glance)](#the-single-pipeline-at-a-glance)
+2. [Why one repo, not two](#why-one-repo-not-two)
+3. [Repository layout](#repository-layout)
+4. [How ETL connects to RFM and architecture](#how-etl-connects-to-rfm-and-architecture)
+5. [Headline results](#headline-results)
+6. [Quickstart](#quickstart)
+7. [Documents](#documents)
+8. [What I'd do next](#what-id-do-next)
+9. [Honest limits](#honest-limits)
+10. [Credits and license](#credits-and-license)
 
 ---
 
-## TL;DR
+## The single pipeline (at a glance)
 
-| Project | Problem | Headline result | AWS architecture | Cost @ scale | Latency SLO |
-|---|---|---|---|---:|---:|
-| **Netflix recommender** | Predict user-movie ratings on the Netflix Prize dataset (100M ratings) | **Probe RMSE 0.9491** — within 1% of Cinematch | S3 medallion lake → SageMaker training/serving → DynamoDB online store → API Gateway | **~$9.3K/mo** at 1M MAU | **150 ms p95** |
-| **Customer 360** | Real-time churn scoring + segmentation across 11 source systems for an enterprise call-centre | 7-lane AWS reference architecture with closed-loop drift→retrain | S3 4-zone medallion (Raw → Curated → Enriched → Consumption) → Lake Formation → SageMaker Pipelines → Connect screen-pop + Pinpoint | **~$12.5K/mo** | **<150 ms p95**, **<50 ms** agent lookup |
+```mermaid
+flowchart TB
+  subgraph ingest [1 — ETL and curation]
+    R[Raw Netflix Prize files] --> P[data/*.parquet]
+  end
+  subgraph analytics [2 — Offline ML and segmentation]
+    P --> E[EDA]
+    P --> M[Recommender + probe RMSE]
+    P --> C[Clustering cohorts]
+    P --> F[RFM segments + cross-tab]
+  end
+  subgraph design [3 — Architecture and scale]
+    M --> AWS1[ARCHITECTURE.md — recommender on AWS]
+    F --> AWS2[CUSTOMER_360_PLATFORM.md + diagram]
+    AWS1 --> PAT[Same pattern: S3, SageMaker, DynamoDB, API, drift, cost]
+    AWS2 --> PAT
+  end
+```
 
-Both systems share the same production muscles: medallion S3 lake, SageMaker
-training and serving, DynamoDB online cache, API Gateway with Cognito JWT,
-Mitchell-template model card, PSI-driven drift policy, and a line-item AWS
-cost model.
-
----
-
-## Why this portfolio
-
-Most ML coursework ends at *"I trained a model in a notebook."* The next
-layer — **what does it cost, what's the SLA, how do you retrain, how do
-you roll back** — is where production systems live and die, and it's almost
-never demonstrated in a portfolio. So I built it twice, on two different
-problem classes, to prove the discipline transfers.
-
-- **Project 1 (Netflix recommender)** stresses *offline ranking quality and
-  online candidate generation*: matrix factorisation, item-CF residual
-  correction, hybrid scoring, vector store, popularity fallback for
-  cold-start.
-- **Project 2 (Customer 360)** stresses *multi-source ingestion, real-time
-  agent enablement, and closed-loop ML lifecycle*: 11 source systems
-  (CRM, Genesys call audio, Salesforce, Zendesk, billing, web), 4-zone S3
-  medallion lake, SageMaker Pipelines (Validate → Feature Build → Train →
-  Evaluate → Register), DynamoDB online cache for sub-50 ms agent screen
-  lookups, drift detection (PSI > 0.2 or AUC < 0.78) wired into a retrain
-  trigger, and a multi-channel activation surface (Connect screen-pop,
-  Pinpoint, exec dashboards).
-
-The reusable production pattern shows up in both: **S3 + SageMaker +
-DynamoDB + API Gateway + 150 ms p95 SLO + Mitchell model card + PSI drift
-policy + IaC**. The model on top changes; the system around it doesn't.
+| Phase | What you run / read | Outcome |
+|--------|----------------------|---------|
+| **1 — ETL** | `python run_data_loading.py` | `data/ratings.parquet`, `data/probe.parquet` — single source for all downstream steps |
+| **2 — Analytics** | `run_eda.py` → `run_recommendation.py` → `clustering.py` → `run_rfm.py` (or notebooks `01`–`05`) | Recommender quality, behavioural clusters, RFM segments tied together |
+| **3 — Architecture** | [`docs/ETL_TO_ARCHITECTURE.md`](docs/ETL_TO_ARCHITECTURE.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`docs/CUSTOMER_360_PLATFORM.md`](docs/CUSTOMER_360_PLATFORM.md), notebook `06` | How the offline path maps to serving, governance, and multi-source Customer 360 |
 
 ---
 
-## The two projects at a glance
+## Why one repo, not two
 
-### Project 1 — Netflix-scale recommender
-A hybrid SVD + Item-based-CF residual recommender on the Netflix Prize
-dataset (100,480,507 ratings, 480,189 users, 17,770 movies). Achieves
-**probe RMSE 0.9491**, beating SVD-alone (0.9632) and the bias baseline
-(0.9965), and lands within 1% of Netflix's own Cinematch (0.9525). Paired
-with an AWS production design priced at **~$9.3K/mo at 1M MAU**, a Mitchell
-model card, a Cognito-authenticated REST API, and an MLOps runbook.
+Splitting “Netflix code” and “Customer 360 deck” into separate folders made
+it *feel* like two submissions. In practice:
 
-→ **[`projects/netflix-recommender/`](projects/netflix-recommender/)**
+- **RFM and clustering** are the same *kind* of artefact a Customer 360
+  consumption zone would serve to Connect, Pinpoint, or QuickSight.
+- **ETL to Parquet** is the same *shape* as landing curated tables in a
+  medallion lake before feature pipelines.
+- **[`ARCHITECTURE.md`](ARCHITECTURE.md)** (recommender) and
+  **[`docs/CUSTOMER_360_PLATFORM.md`](docs/CUSTOMER_360_PLATFORM.md)** are two
+  **zoom levels** on how to run ML on AWS, not two unrelated projects.
 
-### Project 2 — Customer 360 churn + segmentation platform
-An enterprise customer-360 architecture combining churn classification,
-RFM-style segmentation, and real-time agent enablement. The deliverable is
-a 7-swim-lane AWS reference architecture with: 11 source systems, a
-4-zone S3 medallion lake governed by Lake Formation, SageMaker Pipelines
-for training, DynamoDB for online lookups (**<50 ms** at the agent screen),
-drift-driven retraining (PSI > 0.2 or AUC < 0.78), and a multi-channel
-activation surface (Amazon Connect screen-pop, Pinpoint, QuickSight exec
-dashboards). Sized at **~$12.5K/mo** with **37.5 TB/yr raw ingestion**
-through the medallion lake.
-
-→ **[`projects/customer-360/`](projects/customer-360/)**
+So this repo is **one portfolio**: lab execution + production design + enterprise scale-up narrative.
 
 ---
 
 ## Repository layout
 
-This is a monorepo. Each project lives under `projects/` with its own
-docs, so a reviewer can read either project independently or both as a
-portfolio.
-
 ```
 .
-├── README.md                              <- you are here (portfolio narrative)
-├── LICENSE                                <- MIT
-├── .gitignore
-├── docs/
-│   ├── PORTFOLIO_OVERVIEW.md              <- deeper "why these two projects"
-│   └── RESUME_BULLETS.md                  <- ready-to-paste resume framings
+├── README.md                    <- you are here
+├── LICENSE
+├── requirements.txt
+├── ARCHITECTURE.md              <- AWS design for the recommender path + cost
+├── MODEL_CARD.md                <- Mitchell template (recommender)
+├── README_academic.md           <- original course framing
 │
-└── projects/
-    │
-    ├── netflix-recommender/               <- Project 1
-    │   ├── README.md                      <- Netflix-specific narrative
-    │   ├── ARCHITECTURE.md                <- AWS reference design + cost model
-    │   ├── MODEL_CARD.md                  <- Mitchell template
-    │   ├── docs/
-    │   │   ├── API.md                     <- REST contract, 150 ms p95 SLO
-    │   │   └── MLOPS.md                   <- pipeline, drift, rollouts, runbook
-    │   ├── notebooks/
-    │   │   ├── 01_data_loading.ipynb      <- raw .txt → ratings.parquet
-    │   │   ├── 02_eda.ipynb
-    │   │   ├── 03_recommendation.ipynb    <- SVD + Item-CF; probe RMSE 0.9491
-    │   │   ├── 04_clustering.ipynb        <- KMeans / hierarchical / DBSCAN / t-SNE
-    │   │   └── 05_rfm_analysis.ipynb      <- RFM + cross-tab vs clustering
-    │   ├── src/                           <- (planned) extracted .py modules
-    │   ├── outputs/                       <- figures only; .parquet files git-ignored
-    │   ├── requirements.txt
-    │   └── LICENSE                        <- MIT
-    │
-    └── customer-360/                      <- Project 2
-        ├── README.md                      <- Customer 360 overview + design rationale
-        ├── ARCHITECTURE.md                <- 7-lane AWS architecture, cost, SLOs
-        ├── MODEL_CARD.md                  <- planned churn model card
-        ├── docs/
-        │   ├── API.md                     <- /v1/score, /v1/segment, JWT, <150 ms SLO
-        │   ├── MLOPS.md                   <- SageMaker Pipelines + drift→retrain loop
-        │   └── SECURITY.md                <- IAM / KMS / Lake Formation / Macie
-        ├── architecture/
-        │   ├── Customer360_Architecture.drawio       <- editable diagram source
-        │   ├── Customer360_Architecture.png          <- exported PNG (for README)
-        │   └── Cloud_Engineering.pdf                 <- exported deck (governance, IaC, cost)
-        └── REFERENCES.md                  <- citations + course-material lineage
+├── src/netflix_recommender/     <- importable Python (ETL, EDA, recommend, cluster, RFM)
+├── run_data_loading.py          <- CLI entry points (same code as notebooks)
+├── run_eda.py
+├── run_recommendation.py
+├── clustering.py
+├── run_rfm.py
+│
+├── notebooks/                   <- thin wrappers 01–05 + architecture bridge 06
+├── outputs/                     <- figures (+ small CSV where noted)
+├── architecture/              <- Customer360_Architecture.drawio (+ export PNG when ready)
+│
+└── docs/
+    ├── ETL_TO_ARCHITECTURE.md   <- explicit map: ETL → RFM → enterprise design
+    ├── NETFLIX_PIPELINE.md      <- deep dive on modelling + CLI (former project README)
+    ├── CUSTOMER_360_PLATFORM.md
+    ├── RESUME_BULLETS.md
+    ├── API.md
+    ├── MLOPS.md
+    └── assignment/              <- course briefs
 ```
 
-The current `Reommendation_Project/` working folder still has the old
-flat layout (everything at the root); the **[GitHub upload guide](GITHUB_UPLOAD_GUIDE.md)**
-lists exactly what to move where before pushing.
+---
+
+## How ETL connects to RFM and architecture
+
+Read **[`docs/ETL_TO_ARCHITECTURE.md`](docs/ETL_TO_ARCHITECTURE.md)** — it is
+the short “glue” document that walks from Parquet outputs to segmentation
+artefacts to the Customer 360 swim-lanes and [`architecture/Customer360_Architecture.drawio`](architecture/Customer360_Architecture.drawio).
 
 ---
 
-## What's the same across both — the production discipline
+## Headline results
 
-This is the through-line a reviewer should notice. Both projects ship:
-
-| Pillar | Netflix | Customer 360 |
-|---|---|---|
-| **Storage** | S3 medallion (Raw → Curated → Feature → Consumption) | S3 medallion (Raw → Curated → Enriched → Consumption) + Lake Formation |
-| **Training** | SageMaker training jobs, weekly schedule | SageMaker Pipelines: Validate → Feature Build → Train → Evaluate → Register |
-| **Online store** | DynamoDB (precomputed top-N + features) | DynamoDB (real-time score cache, <50 ms read) |
-| **Serving** | API Gateway + Lambda, 150 ms p95 | API Gateway + Cognito JWT, <150 ms p95, agent screen <50 ms |
-| **Drift** | PSI on user-activity features | PSI > 0.2 OR AUC < 0.78 → auto-retrain trigger |
-| **Rollout** | Shadow → canary → ramp → full | Shadow → canary → ramp → full |
-| **Governance** | Mitchell model card, ethical considerations, do/don't list | Mitchell model card + IAM, KMS, Lake Formation, Macie, CloudTrail |
-| **IaC** | (referenced) | Service Catalog → CodeCommit → CodeBuild → CodePipeline → CDK → CloudFormation |
-| **Cost discipline** | Line-item AWS Pricing Calculator estimate | Line-item with cost-per-zone breakdown |
-
-The reusable pattern is the contribution. The model on top is the case study.
-
----
-
-## Project 1 — Netflix recommender
-
-### Headline numbers
-
-| Rank | Model | Probe RMSE | Δ vs global mean |
-|---:|---|---:|---:|
-| 1 | **SVD + Item-CF residual correction** | **0.9491** | **−16.0%** |
-| 2 | SVD (matrix factorisation) | 0.9632 | −14.7% |
-| 3 | User + movie bias | 0.9965 | −11.8% |
-| 4 | Global-mean baseline | 1.1296 | — |
-
-Source: `projects/netflix-recommender/notebooks/03_recommendation.ipynb`.
-Cinematch reference: 0.9525. BellKor winner: 0.8567 (after 3 years of
-ensemble work).
-
-### Why hybrid beat plain SVD
-
-SVD plus a KNN residual correction on the top-1000 popular movies catches
-long-tail signal that the latent factors smoothed away. The residual is
-weighted with α=1.0 (un-tuned — flagged in the model card as a known
-follow-up).
-
-### Production design ([`ARCHITECTURE.md`](projects/netflix-recommender/ARCHITECTURE.md))
-
-S3 medallion lake → Glue / EMR ETL → SageMaker training and serving →
-API Gateway + Lambda → DynamoDB online feature/score store → OpenSearch
-for vector candidate generation. Sized at **~$9.3K/mo at 1M monthly
-active users**, line-item from the AWS Pricing Calculator (us-east-1, 2026).
-
-### Documents
-
-- [`README.md`](projects/netflix-recommender/README.md) — project narrative
-- [`ARCHITECTURE.md`](projects/netflix-recommender/ARCHITECTURE.md) — AWS design + cost
-- [`MODEL_CARD.md`](projects/netflix-recommender/MODEL_CARD.md) — Mitchell template
-- [`docs/API.md`](projects/netflix-recommender/docs/API.md) — REST contract
-- [`docs/MLOPS.md`](projects/netflix-recommender/docs/MLOPS.md) — pipeline + drift + rollouts
-
----
-
-## Project 2 — Customer 360 churn + segmentation
-
-### What it is
-
-A 7-swim-lane AWS reference architecture for an enterprise customer-360
-platform: ingest from 11 source systems (CRM, Genesys call streams,
-Salesforce, Zendesk, billing, web events, etc.), land in a 4-zone S3
-medallion lake (Raw → Curated → Enriched → Consumption) governed by Lake
-Formation, train churn + segmentation models through SageMaker Pipelines,
-serve real-time scores via DynamoDB cache for **<50 ms agent-screen lookups**,
-and activate through Amazon Connect screen-pop, Pinpoint email/SMS, and
-QuickSight executive dashboards.
-
-### Architecture diagram
-
-`projects/customer-360/architecture/Customer360_Architecture.drawio` —
-editable in [diagrams.net](https://app.diagrams.net/). PNG export embedded
-inline in the project README. The deck (`Cloud_Engineering.pdf`) covers
-service-by-service justification, security and governance, IaC pipeline,
-and the layer-by-layer cost model.
-
-### Headline production numbers
-
-| Dimension | Value |
-|---|---|
-| Raw ingestion | 37.5 TB / year |
-| Consumption | 2 TB / year |
-| Prediction latency p95 | <150 ms |
-| Agent screen lookup | <50 ms (DynamoDB) |
-| Pipeline availability | 99.9% |
-| Model availability | 99.95% |
-| RPO / RTO | 15 min / 4 hr |
-| Drift trigger | PSI > 0.2 OR AUC < 0.78 |
-| Cost (priced) | ~$12.5K / month |
-
-### Documents
-
-- [`README.md`](projects/customer-360/README.md) — project narrative
-- [`ARCHITECTURE.md`](projects/customer-360/ARCHITECTURE.md) — service-by-service design
-- [`docs/API.md`](projects/customer-360/docs/API.md) — `/v1/score`, `/v1/segment`, JWT auth
-- [`docs/MLOPS.md`](projects/customer-360/docs/MLOPS.md) — Pipelines + drift→retrain loop
-- [`docs/SECURITY.md`](projects/customer-360/docs/SECURITY.md) — IAM, KMS, Lake Formation, Macie, GDPR/CCPA/PCI-DSS
-- [`MODEL_CARD.md`](projects/customer-360/MODEL_CARD.md) — planned churn classifier model card
-- [`REFERENCES.md`](projects/customer-360/REFERENCES.md) — industry benchmarks, AWS docs, course-material lineage
+| Track | Headline |
+|--------|-----------|
+| **Recommender** | **Probe RMSE 0.9491** — SVD + item–item residual correction (see `run_recommendation.py` / notebook `03`) |
+| **Segmentation** | RFM nine-segment scheme + cross-tab vs K-Means clusters (notebook `05`, `run_rfm.py`) |
+| **Recommender @ AWS** | Sized stack ~**$9.3K/mo @ 1M MAU**, 150 ms p95 — [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| **Customer 360 @ AWS** | 7 swim lanes, **~$12.5K/mo**, &lt;150 ms p95 scoring — [`docs/CUSTOMER_360_PLATFORM.md`](docs/CUSTOMER_360_PLATFORM.md) |
 
 ---
 
 ## Quickstart
 
-### Project 1 — Netflix recommender
-
 ```bash
-cd projects/netflix-recommender
-
-# 1. Get the data (~2 GB unpacked) — Kaggle Netflix Prize, kept out of git
-mkdir -p dataset && cd dataset
-# download from https://www.kaggle.com/datasets/netflix-inc/netflix-prize-data
-cd ..
-
-# 2. Install
-python -m venv .venv && source .venv/bin/activate
+git clone <your-repo-url> && cd <repo-dir>
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3. Build the parquet dataset (replaces notebook 01)
-python run_data_loading.py
+# 1) Obtain Netflix Prize data from Kaggle; place under ./dataset/
+#    https://www.kaggle.com/datasets/netflix-inc/netflix-prize-data
 
-# 4. Run the notebooks in order
-jupyter lab notebooks/
+python run_data_loading.py              # ETL → data/*.parquet
+python run_eda.py
+python run_recommendation.py            # long run; add --skip-hybrid for dev
+python clustering.py
+python run_rfm.py
 ```
 
-### Project 2 — Customer 360
+Optional: `jupyter lab notebooks/` and run `01`–`06` in order. Notebook **06**
+is mostly narrative + links (architecture bridge).
 
-```bash
-cd projects/customer-360
-# Open the architecture diagram in your browser:
-open architecture/Customer360_Architecture.drawio   # macOS, with diagrams.net desktop
-# …or upload to https://app.diagrams.net/ and open the .drawio file
-```
+---
 
-This project is a **reference architecture and design portfolio** —
-there is no notebook to run. The deliverable is the diagram, the
-service justification, the cost model, and the surrounding docs.
+## Documents
+
+| Document | Role |
+|----------|------|
+| [`docs/ETL_TO_ARCHITECTURE.md`](docs/ETL_TO_ARCHITECTURE.md) | Connects ETL, RFM/clustering, and enterprise architecture |
+| [`docs/NETFLIX_PIPELINE.md`](docs/NETFLIX_PIPELINE.md) | Full modelling + CLI narrative |
+| [`docs/CUSTOMER_360_PLATFORM.md`](docs/CUSTOMER_360_PLATFORM.md) | Customer 360 platform (architecture-first) |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Recommender AWS reference + cost |
+| [`MODEL_CARD.md`](MODEL_CARD.md) | Model card |
+| [`docs/API.md`](docs/API.md), [`docs/MLOPS.md`](docs/MLOPS.md) | API contract + MLOps (recommender path) |
+| [`docs/RESUME_BULLETS.md`](docs/RESUME_BULLETS.md) | Resume-ready bullets |
+
+*Planned Customer 360 sub-docs* (API/MLOps/SECURITY/model card at C360 specificity) can be added under `docs/` later as separate files; the platform overview already states what is live vs planned.
 
 ---
 
 ## What I'd do next
 
-In priority order:
-
-1. **Wire the Netflix MLOps pipeline into a real SageMaker Pipelines DAG**
-   and ship a working API behind an API Gateway dev stage. The spec is
-   complete; the implementation isn't.
-2. **Build a Customer 360 churn classifier on a public benchmark** (e.g.,
-   the Telco Customer Churn dataset on Kaggle) so the architecture has a
-   working model card with real numbers, not just a planned one.
-3. **Replace SVD with an implicit-feedback ALS or two-tower neural
-   network** on the Netflix side to handle dwell-time / clicks, not just
-   explicit ratings.
-4. **Add a fairness audit** (per-genre and per-decade RMSE on Netflix; per
-   demographic-segment AUC on Customer 360 once the model exists).
-5. **Stand up the IaC pipeline end-to-end** (CodeCommit → CodeBuild →
-   CodePipeline → CDK) for one of the two projects, so the whole thing is
-   reproducible from git.
+1. Ship the recommender MLOps path to a real SageMaker dev pipeline + API Gateway stage (spec exists in `docs/`).
+2. Add a **public churn benchmark** so Customer 360 has measured metrics, not only architecture.
+3. Export **`architecture/Customer360_Architecture.png`** from the `.drawio` so the platform doc renders on GitHub without opening diagrams.net.
+4. Optional fairness / slice evaluation on the recommender and on any future churn model.
 
 ---
 
 ## Honest limits
 
-What this portfolio does *not* claim:
-
-- ❌ Neither system is **deployed to production**. Both architectures are
-  designed and priced; neither is running for real traffic.
-- ❌ No **A/B test** has been run. The rollout *policy* is specified; no
-  live experiment exists.
-- ❌ No **business KPI improvement** is claimed. There is no live business
-  attached to either dataset.
-- ❌ The **Customer 360 churn model itself is not yet built** — that
-  project's deliverable is the architecture and service justification, not
-  a trained classifier.
-- ❌ No **fairness audit** has been completed; both model cards flag this
-  as a gap.
-
-The point of these designs is that an engineer with the same artefacts
-could ship them. The point of the Netflix notebooks is to demonstrate the
-modelling depth that justifies the production layer above them.
+- **Not deployed** — designs and offline ML are real; no production traffic.
+- **Customer 360 churn model** is architecture-first; classifier is planned where stated in the platform doc.
+- **Netflix Prize** is used as a **lab dataset**; rights and terms belong to Netflix, not this MIT-licensed code.
 
 ---
 
 ## Credits and license
 
-**Project 1 — Netflix recommender** was a five-person MLDS 423 group
-project at Northwestern. I owned the segmentation track (RFM + cross-tab
-vs clustering) and independently authored the entire production-design
-layer (the README, ARCHITECTURE, MODEL_CARD, API, and MLOPS docs); the
-modelling work was a team effort. Full credits in
-[`projects/netflix-recommender/README.md`](projects/netflix-recommender/README.md).
+Course lineage and team credits for the **original** group modelling work
+live in **[`README_academic.md`](README_academic.md)** and
+**[`docs/NETFLIX_PIPELINE.md`](docs/NETFLIX_PIPELINE.md)**. The **Customer 360**
+narrative builds on Cloud Engineering / MLDS reference architectures; see
+**[`docs/CUSTOMER_360_PLATFORM.md`](docs/CUSTOMER_360_PLATFORM.md)** for scope
+and references.
 
-**Project 2 — Customer 360** is a personal architecture portfolio piece
-that builds on the Cloud Engineering / MLDS 423 reference architectures
-(Slide 16 — Data & Analytics Pipeline; Slide 17 — ML Pipeline) and the
-[423-architecture-lab-activity](https://github.com/sungsoolim90/423-architecture-lab-activity).
-The diagram, the service-by-service justification, the cost model, and
-the security/IaC narrative are mine.
-
-**Datasets:** [Netflix Prize](https://www.kaggle.com/datasets/netflix-inc/netflix-prize-data)
-(rights belong to Netflix Inc.); Customer 360 uses no real customer data —
-it is an architecture, not a deployed system.
-
-**License:** Code in this repository is released under the [MIT
-License](LICENSE). The Netflix Prize dataset is **not** covered by this
-licence and is subject to its own terms.
+**License:** [MIT](LICENSE). Netflix Prize **data** is not included and remains
+subject to Kaggle / Netflix terms.
 
 ---
 

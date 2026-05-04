@@ -51,7 +51,7 @@
 
 The deliverable is the design — not a deployed system. Source: the AWS
 Pricing Calculator (us-east-1, 2026) plus the architecture diagram and
-deck (`architecture/Cloud_Engineering.pdf`).
+deck (`../architecture/Cloud_Engineering.pdf`).
 
 ---
 
@@ -84,7 +84,7 @@ they ask "show me the deployment."
   for QuickSight + DynamoDB; keeping it separate from "Enriched" is what
   makes the 99.9% pipeline SLO independent of model retraining.)*
 
-The deck (`architecture/Cloud_Engineering.pdf`) walks through every one
+The deck (`../architecture/Cloud_Engineering.pdf`) walks through every one
 of those choices with a "considered alternatives — rejected" frame.
 
 ---
@@ -122,7 +122,7 @@ Below the lanes:
 - **Blue solid** — real-time read path (API Gateway → Lambda → DynamoDB
   cache, <50 ms p95).
 
-Open `architecture/Customer360_Architecture.drawio` in
+Open `../architecture/Customer360_Architecture.drawio` in
 [diagrams.net](https://app.diagrams.net/) for the editable source.
 
 ---
@@ -247,9 +247,9 @@ straight to the documents.)
 | Document | What it covers | Status |
 |---|---|---|
 | `README.md` | This file — project overview | ✅ |
-| `architecture/Customer360_Architecture.drawio` | Editable diagram source | ✅ |
-| `architecture/Customer360_Architecture.png` | PNG export for GitHub rendering | ✅ |
-| `architecture/Cloud_Engineering.pdf` | Slide deck — service justification, cost, governance, IaC | ✅ |
+| `../architecture/Customer360_Architecture.drawio` | Editable diagram source | ✅ |
+| `../architecture/Customer360_Architecture.png` | PNG export for GitHub rendering | ✅ |
+| `../architecture/Cloud_Engineering.pdf` | Slide deck — service justification, cost, governance, IaC | ✅ |
 | `ARCHITECTURE.md` | Service-by-service narrative + cost model | 📝 planned |
 | `docs/API.md` | `/v1/score`, `/v1/segment`, JWT auth, <150 ms SLO | 📝 planned |
 | `docs/MLOPS.md` | SageMaker Pipelines DAG, drift policy, rollouts | 📝 planned |
@@ -267,15 +267,15 @@ project; the supporting docs add depth and will land incrementally.
 
 For a hiring manager / staff engineer reviewing this in 5 minutes:
 
-1. **Start with the diagram** — `architecture/Customer360_Architecture.png`.
+1. **Start with the diagram** — `../architecture/Customer360_Architecture.png`.
 2. **Read this README's [Seven swim lanes](#the-seven-swim-lanes)** for the
    service rationale.
-3. **Skim the deck PDF** (`architecture/Cloud_Engineering.pdf`) for the
+3. **Skim the deck PDF** (`../architecture/Cloud_Engineering.pdf`) for the
    "considered alternatives — rejected" frame on each major service choice.
 
 For a peer engineer wanting to understand the operational model:
 
-1. **Open `architecture/Customer360_Architecture.drawio`** in diagrams.net.
+1. **Open `../architecture/Customer360_Architecture.drawio`** in diagrams.net.
 2. **Trace the three flow types**: black (data), red dashed (drift loop),
    blue (real-time read path).
 3. **When `docs/MLOPS.md` lands**, read it for the pipeline DAG + drift

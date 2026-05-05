@@ -386,4 +386,4 @@ Code: [MIT](LICENSE). **Dataset:** Kaggle / Netflix terms; not redistributed in 
 
 ## Acknowledgements
 
-This project is built upon [group work](https://github.com/eason034056/netflix-prize-data-mining-project) completed together with **Eason Wu**, Eric Wu, Kun-Yu Lee, and Xinqi Huang.
+This project is built upon [group work](https://github.com/eason034056/netflix-prize-data-mining-project) completed together with Eason Wu, Eric Wu, Kun-Yu Lee, and Xinqi Huang.

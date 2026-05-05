@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
-  { name = "Yuanyuan Xie", email = "YuanyuanXie2026@u.northwestern.edu" }
+  { name = "Yuanyuan Xie", email = "yyuanxie1101@gmail.com" }
 ]
 keywords = ["recommendation-systems", "collaborative-filtering", "clustering", "rfm-segmentation", "machine-learning"]
 

@@ -1,6 +1,6 @@
 <p align="center">
   <b>Yuanyuan Xie</b><br/>
-  <a href="mailto:YuanyuanXie2026@u.northwestern.edu">YuanyuanXie2026@u.northwestern.edu</a>
+  <a href="mailto:yyuanxie1101@gmail.com">yyuanxie1101@gmail.com</a>
 </p>
 
 <p align="center">

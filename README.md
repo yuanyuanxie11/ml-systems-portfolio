@@ -1,4 +1,5 @@
-# Netflix Recommendation System at Scale — End-to-End ML & AWS Architecture
+# Netflix Recommendation System at Scale
+## End-to-End ML & AWS Architecture
 
 *Hybrid recommendation engine · behavioral clustering · RFM segmentation · production cloud design*
 

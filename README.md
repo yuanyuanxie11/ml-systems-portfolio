@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="docs/assets/presentation-01.png" alt="Netflix Prize Data Mining Project — Yuanyuan Xie" width="85%">
-</p>
-
-<p align="center">
   <b>Yuanyuan Xie</b><br/>
   <a href="mailto:YuanyuanXie2026@u.northwestern.edu">YuanyuanXie2026@u.northwestern.edu</a>
 </p>
@@ -380,3 +376,9 @@ python -m netflix_recommender rfm --no-plotly-html
 ## Licence
 
 Code: [MIT](LICENSE). **Dataset:** Kaggle / Netflix terms; not redistributed in this repository.
+
+---
+
+## Acknowledgements
+
+This project is built upon group work completed together with [Eason Wu](https://github.com/eason034056), Eric Wu, Kun-Yu Lee, and Xinqi Huang.

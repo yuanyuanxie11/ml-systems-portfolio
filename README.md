@@ -1,3 +1,7 @@
+# Netflix Recommendation System at Scale — End-to-End ML & AWS Architecture
+
+*Hybrid recommendation engine · behavioral clustering · RFM segmentation · production cloud design*
+
 <p align="center">
   <b>Yuanyuan Xie</b><br/>
   <a href="mailto:YuanyuanXie2026@u.northwestern.edu">YuanyuanXie2026@u.northwestern.edu</a>
@@ -381,4 +385,4 @@ Code: [MIT](LICENSE). **Dataset:** Kaggle / Netflix terms; not redistributed in 
 
 ## Acknowledgements
 
-This project is built upon group work completed together with [Eason Wu](https://github.com/eason034056), Eric Wu, Kun-Yu Lee, and Xinqi Huang.
+This project is built upon [group work](https://github.com/eason034056/netflix-prize-data-mining-project) completed together with **Eason Wu**, Eric Wu, Kun-Yu Lee, and Xinqi Huang.

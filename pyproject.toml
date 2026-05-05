@@ -9,6 +9,10 @@ description = "Netflix Prize ETL, hybrid recommender, clustering, and RFM segmen
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+authors = [
+  { name = "Yuanyuan Xie", email = "YuanyuanXie2026@u.northwestern.edu" }
+]
+keywords = ["recommendation-systems", "collaborative-filtering", "clustering", "rfm-segmentation", "machine-learning"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -387,5 +387,4 @@ Rename only if README + CV + GitHub “About” all match — consistency beats 
 
 Code is [MIT](LICENSE). Dataset terms remain with Netflix/Kaggle hosts.
 
-Companion analysis grew from collaborative [Netflix Prize mining work](https://github.com/eason034056/netflix-prize-data-mining-project) with **Eason Wu**, Eric Wu, Kun-Yu Lee, and Xinqi Huang.
->>>>>>> Stashed changes
+Companion analysis grew from collaborative [Netflix Prize mining work](https://github.com/eason034056/netflix-prize-data-mining-project) with Eason Wu, Eric Wu, Kun-Yu Lee, and Xinqi Huang.

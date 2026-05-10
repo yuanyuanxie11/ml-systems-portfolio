@@ -93,10 +93,16 @@ def load_probe(filepath: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def run_data_loading(root: Path, *, sample_fraction: float = 1.0) -> None:
-    data_dir = root / "dataset"
+def run_data_loading(
+    root: Path,
+    *,
+    sample_fraction: float = 1.0,
+    dataset_dir_name: str = "dataset",
+    output_dir_name: str = "data",
+) -> None:
+    data_dir = root / dataset_dir_name
     training_dir = data_dir / "training_set"
-    output_dir = root / "data"
+    output_dir = root / output_dir_name
     output_dir.mkdir(exist_ok=True)
 
     print("1. Loading movie_titles...")

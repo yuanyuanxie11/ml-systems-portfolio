@@ -18,6 +18,12 @@ plotly==5.22.0
 
 # --- Utilities ---
 tqdm==4.66.4
+PyYAML==6.0.1
+joblib==1.4.2
+boto3==1.35.53
+
+# --- Pipeline / tests ---
+pytest==8.3.3
 
 # --- Notebook ---
 jupyter==1.0.0

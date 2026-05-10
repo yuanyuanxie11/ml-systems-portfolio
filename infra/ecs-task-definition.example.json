@@ -1,0 +1,30 @@
+{
+  "family": "churn-pipeline-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/churnPipelineTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "churn-pipeline",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/churn-pipeline:latest",
+      "essential": true,
+      "environment": [
+        {"name": "AWS_DEFAULT_REGION", "value": "REGION"},
+        {"name": "S3_BUCKET", "value": "your-artifacts-bucket"},
+        {"name": "PYTHONUNBUFFERED", "value": "1"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/churn-pipeline",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "churn"
+        }
+      },
+      "command": ["python", "pipeline.py", "--config", "config/churn_pipeline.yaml"]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+# Churn proxy pipeline — all paths relative to project root unless absolute.
+# Override S3 bucket with env: S3_BUCKET (non-empty wins over s3.bucket below).
+
+project:
+  root: "."  # resolved from cwd; pipeline.py sets explicit root
+
+paths:
+  dataset_dir: "dataset"
+  data_dir: "data"
+  ratings_filename: "ratings.parquet"
+
+ingestion:
+  enabled: true
+  sample_fraction: 1.0
+  skip_if_ratings_exist: false
+
+churn:
+  reference_date: "2005-12-31" # use max rating date if null
+  horizon_days: 180
+  min_prior_ratings: 5
+
+split:
+  test_size: 0.25
+  random_state: 42
+
+# Feature columns to train on (subset of engineered names)
+feature_columns:
+  - rating_count
+  - rating_mean
+  - rating_std
+  - five_star_pct
+  - date_range_days
+  - most_common_rating
+
+model:
+  type: logistic_regression
+  params:
+    max_iter: 2000
+    C: 1.0
+
+artifacts:
+  base_dir: "artifacts"
+
+s3:
+  upload_enabled: false
+  bucket: ""
+  prefix: "churn-pipeline"

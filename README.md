@@ -1,7 +1,11 @@
+<<<<<<< Updated upstream
 # Netflix Recommendation System at Scale
 ## End-to-End ML & AWS Architecture
+=======
+# Behavioural Intelligence at Scale — Recommendations, Segments & Churn-Ready ML Ops
+>>>>>>> Stashed changes
 
-*Hybrid recommendation engine · behavioral clustering · RFM segmentation · production cloud design*
+**Netflix Prize corpus · hybrid recommender · user & movie clustering · RFM · reproducible churn proxy pipeline**
 
 <p align="center">
   <b>Yuanyuan Xie</b><br/>
@@ -10,380 +14,378 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/Probe_RMSE-0.9491-brightgreen" />
-  <img src="https://img.shields.io/badge/Scale-100M%2B_ratings-orange" />
-  <img src="https://img.shields.io/badge/AWS-Customer_360_Architecture-FF9900?logo=amazonaws&logoColor=white" />
+  <img src="https://img.shields.io/badge/Probe_RMSE-0.9491-brightgreen" alt="Hybrid recommender probe RMSE" />
+  <img src="https://img.shields.io/badge/Data-100M%2B_ratings-orange" />
+  <img src="https://img.shields.io/badge/Churn_pipeline-YAML_|_Docker_|_S3-teal" />
+  <img src="https://img.shields.io/badge/AWS-Reference_architecture-FF9900?logo=amazonaws&logoColor=white" />
   <img src="https://img.shields.io/badge/License-MIT-lightgrey" />
 </p>
 
 ---
 
-## What this repository demonstrates
+## Narrative spine (how to read this page)
 
-This project builds a **production-grade ML system end to end** — from 100M+ rows of raw behavioral data, through feature engineering, hybrid recommendation, user clustering and RFM segmentation, all the way to a detailed AWS production architecture that shows exactly where each component lives in a real enterprise platform.
-
-The goal is not just to train a model. It is to show the full lifecycle: **understand the data → build the models → segment the users → deploy on cloud infrastructure** — and to connect every offline analytical decision to its production counterpart.
-
-```
-Raw ratings (100M+)
-  │
-  ▼
-ETL → Parquet          ←─── data_io.py           (AWS: Glue + S3 Bronze zone)
-  │
-  ▼
-EDA & distributions    ←─── eda.py                (AWS: SageMaker Studio / Athena)
-  │
-  ├──▶ Hybrid Recommender (SVD + item–item KNN)   (AWS: SageMaker Training + Feature Store)
-  │         └── Probe RMSE 0.9491  [−16% vs baseline]
-  │
-  ├──▶ User & Movie Clustering (K-Means + PCA)    (AWS: SageMaker Processing + Batch Transform)
-  │         └── 2 user archetypes · 4 movie clusters
-  │
-  └──▶ RFM Segmentation (9 business segments)     (AWS: Redshift + Pinpoint + Connect)
-            └── Actionable CRM cohorts for retention
+```mermaid
+flowchart LR
+  problem["1_Business_problem"] --> solve["2_What_we_built"]
+  solve --> tension["3_Challenges"]
+  tension --> mitigate["4_How_we_addressed_each"]
 ```
 
----
+1. **Problem** — Subscribers only stay if the catalogue feels personal; irrelevant recommendations and drifting engagement read as churn risk.  
+2. **Solution** — An **offline behavioural stack**: ETL → EDA → hybrid ratings model → behavioural clusters → RFM cohorts → **plus** a **YAML-driven churn proxy pipeline** (`pipeline.py`) with Docker/S3 hooks that mirrors how coursework and production workflows package the same intent.  
+3. **Challenges** — Extreme sparsity, 100M+ events, interpreting cluster quality vs business coverage, and turning notebooks into reproducible artefacts.  
+4. **Mitigations** — Principled hybrids (SVD + residual KNN), constrained neighbours, PCA-backed clustering with an explicit segmentability trade-off, dual CLIs/modular packages, and config-first automation.
 
-## The story in three acts
-
-### Act I — Understanding the data at scale
-
-### Act II — Building intelligence: recommendations, clusters, segments
-
-### Act III — Production reality: the AWS blueprint
+Everything below walks that arc with **figures first** wherever possible — the screenshots are part of the story, not decoration.
 
 ---
 
-## Act I — Understanding the data at scale
-
-### The business problem: why recommendations matter
+## 1 · The problem: relevance, differentiation, and silent churn
 
 <p align="center">
-  <img src="docs/assets/presentation-02.png" alt="The Business Problem — Why Recommendations Matter" width="90%">
+  <img src="docs/assets/presentation-02.png" alt="Business problem — why recommendations and engagement matter" width="90%">
 </p>
 
-Over 80% of content watched on Netflix is driven by its recommendation engine. Poor recommendations lead directly to churn. The Netflix Prize challenged the data science community to beat Cinematch (Netflix's own algorithm) by 10% on RMSE — a deceptively simple metric that encodes massive business value. The analytical approach here mirrors the production question: can we understand *who* users are, *what* they like, and *how* to treat them differently?
-
----
-
-### Dataset overview: 100 million data points
+Recommendation quality is inseparable from **retention and revenue**: when the next title feels random, subscribers disengage — the same behavioural fade that motivates **churn modelling** downstream. This repository uses the public **Netflix Prize** corpus (1998–2005 ratings) not to claim a live Netflix deployment, but to **stress-test** analytics and pipelines at real scale: sparse matrices, uneven activity, catalogue long tails, and the need for **interpretable cohorts** (who is fragile vs loyal).
 
 <p align="center">
-  <img src="docs/assets/presentation-03.png" alt="Dataset Overview — Scale and Structure" width="90%">
+  <img src="docs/assets/presentation-03.png" alt="Dataset scale and structure overview" width="90%">
 </p>
 
-| Dimension | Value |
-|-----------|-------|
+| Slice | Orders of magnitude |
+|-------|---------------------|
 | Total ratings | **100,480,507** |
-| Unique users | **480,189** |
-| Unique movies | **17,770** |
-| Rating scale | 1–5 stars |
-| Time span | October 1998 – December 2005 |
-| Sparsity | ~98.8% (typical collaborative filtering regime) |
-| Format (raw) | Tab-delimited text files, one per movie |
-| Format (after ETL) | Parquet with temporal features (year, month, day-of-week) |
+| Users / titles | **480,189** users · **17,770** movies |
+| Sparsity | ~**98.8%** (collaborative filtering regime) |
+| Raw → analytics | Tab-delimited files → **`data/*.parquet`** with calendar features from [`data_io`](src/netflix_recommender/data_io.py) |
 
-The sparsity characteristic is fundamental — it is why matrix factorization (SVD) works, and it is why item-item residual correction on the *most-rated* movies can add signal without overfitting sparse tails.
+<p align="center">
+  <img src="docs/assets/presentation-04.png" alt="EDA — long-tail activity" width="90%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/presentation-05.png" alt="EDA — popularity and bias" width="90%">
+</p>
+
+These charts anchor the empirical story before any model equations: heavy tails dictate **factorization-first** modelling; popularity concentrates **where neighbourhoods are trustworthy**; positivity bias motivates **explicit bias layers** rather than naive means.
 
 ---
 
-### Exploratory data analysis: the long-tail reality
+## 2 · The solution: two complementary footprints in one repo
 
-<p align="center">
-  <img src="docs/assets/presentation-04.png" alt="EDA — User Activity Follows a Long-Tail Distribution" width="90%">
-</p>
+| Track | Purpose | Primary entrypoints |
+|-------|---------|---------------------|
+| **Research & segmentation** (`netflix_recommender`) | End-to-end *analysis*: ETL → EDA → hybrid recommender → clustering → RFM dashboards | `python -m netflix_recommender …` · [`offline_pipeline.ipynb`](offline_pipeline.ipynb) |
+| **Operational churn proxy** (`churn_pipeline`) | *Reproducible* pipeline: ingestion → preprocessing → leakage-aware labels → sklearn classifier → metrics/ROC → optional S3, Docker/ECS shaped | [`pipeline.py`](pipeline.py) · [`config/churn_pipeline.yaml`](config/churn_pipeline.yaml) |
 
-Four key structural insights emerge from EDA, and each one directly shapes a modeling decision:
+```
+Raw Netflix Prize files (local ./dataset/, not committed)
+  │
+  ▼
+ETL ──► Parquet ──► EDA (long tail, bias)
+  │
+  ├─► Hybrid recommender (SVD + top-movie residual KNN) ──► probe RMSE 0.9491
+  │
+  ├─► User + movie clustering (PCA + K-Means + comparisons)
+  │
+  └─► RFM + heatmaps ──► “who to win back?” narrative
+Parallel path (config-driven, no Surprise dependency in default run):
+  pipeline.py ──► artifacts/*/ (model, metrics, ROC, config snapshot) ──► optional boto3 ──► S3
+Production *mapping*: AWS medallion lake, SageMaker, Feature Store — see §4.5 diagram.
+```
 
-**User sparsity** — Most users rate relatively few movies, while a small number of power users contribute thousands of ratings. This long-tail drives the need for robust matrix factorization over neighborhood methods for sparse users.
-
-**Movie popularity concentration** — A small set of blockbuster titles dominates rating volume. This informs the residual KNN design: only the top-1,000 movies by volume are used in the item-item correction, because the sparse tail has insufficient signal.
-
-**Rating behavior: positivity bias** — Ratings cluster around 3–4 stars. The model must learn per-user and per-movie bias terms to avoid regressing to a uniform optimistic prior.
-
-**Platform growth** — Rating volume grows sharply through 2004–2005, showing that recency carries information. This motivates the Recency dimension in the RFM segmentation: a user who rated heavily in 2005 is behaviorally different from one whose last activity was 2002.
+The **architecture diagram** in §4.5 ties these offline artefacts to representative AWS components; the code here **implements** Python CLIs/modular pipelines and **documents** lift-and-shift to Glue, SageMaker, Step Functions, and activation channels.
 
 ---
 
-### Rating patterns & bias structure
+## 3 · Challenges (where naive approaches break)
 
-<p align="center">
-  <img src="docs/assets/presentation-05.png" alt="EDA — Rating Patterns and Bias" width="90%">
-</p>
-
-Popularity and quality interact — but not simply. More popular movies tend to receive slightly higher average ratings, but the relationship is noisy: there are niche films with exceptional average ratings from small, self-selected audiences, and blockbusters with mediocre averages from broad audiences. Understanding this interaction is what makes the hybrid approach — SVD capturing global structure, item-item residual correcting local bias — more effective than either component alone.
+| Challenge | What breaks if ignored | Tie-in figures / artefacts |
+|-----------|-------------------------|----------------------------|
+| **Ultra-sparse feedback** | Global-neighbour collaborative filters collapse; noisy tails dominate | Presentation 04 · hybrid design in §4.2 |
+| **Scale & iteration cost** | Full-grid search on 100M rows is infeasible | Tuned SVD on a controlled subsample (`--tune-sample-n`) before full trains |
+| **Popularity imbalance** | Residual corrections from rare items hallucinate patterns | Restrict residual KNN to **top-volume movies** · presentation 05 |
+| **Clusters vs CRM reality** | High silhouette ≠ assignable cohorts | DBSCAN purity vs mandatory assignment — §4.3 table |
+| **Notebook-only workflows** | Non-reproducible grades and fragile handoffs | `pipeline.py`, YAML config, Dockerfile, ECS example JSON |
 
 ---
 
-## Act II — Building intelligence
+## 4 · How each challenge was addressed (deep dive)
 
-### The recommendation engine: SVD + item–item residual hybrid
+### 4.1 · Data readiness and exploratory discipline
+
+Treat EDA outputs as contractual: long-tail histograms motivate matrix factorization, calendar growth motivates **RFM recency** as a behavioural clock, joint popularity–quality plots justify **bias-aware hybrids**. Code: [`eda.py`](src/netflix_recommender/eda.py).
+
+### 4.2 · Hybrid recommender: global structure plus local residuals
 
 <p align="center">
-  <img src="docs/assets/presentation-06.png" alt="Recommendation Engine — Model Comparison" width="90%">
+  <img src="docs/assets/presentation-06.png" alt="Model comparison ladder to hybrid" width="90%">
 </p>
 
-The model architecture follows a principled progression — each step earns its complexity by measurably beating the prior:
-
-| Model | Probe RMSE | vs global mean | Design choice |
-|-------|------------|----------------|---------------|
-| Global mean baseline | 1.1296 | — | Predict the same rating for everyone |
-| User + movie biases | 0.9965 | −11.8% | Per-user and per-movie offset terms |
-| SVD alone | 0.9632 | −14.7% | Matrix factorization; 3-fold CV on 50k sample to tune factors/epochs/lr |
-| **Hybrid (SVD + item–item residual)** | **0.9491** | **−16.0%** | SVD + KNN correction on residuals for top-1,000 movies |
-
-**The hybrid formula:**
+| Stage | Probe RMSE | Role |
+|-------|-----------|------|
+| Global mean | 1.1296 | Baseline pessimism |
+| User + movie biases | 0.9965 | Per-entity offsets |
+| SVD | 0.9632 | Shared low-dimensional taste |
+| **SVD + item–item residual KNN** | **0.9491** | Stable global fit + cosine correction where data is dense |
 
 ```
 ŷ = clip(ŷ_SVD + α · r_KNN, 1, 5),   α = 0.3
 ```
 
-The residual correction adds item-item collaborative filtering signal *on top of* SVD's global structure. By restricting the KNN to the top-1,000 highest-volume movies (40 nearest neighbors, cosine similarity on residual matrix), the correction only fires where there is enough data to trust it. The result beats the Cinematch-era benchmark (~0.9525) on the official Netflix probe set.
+Residual KNN is intentionally **narrow**: top volume movies × fixed neighbour count reduces variance on the sparse tail — the response to §3’s imbalance challenge. Implementation: [`recommendation.py`](src/netflix_recommender/recommendation.py) · CLI `python -m netflix_recommender recommendation`.
 
-**Implementation:** [`src/netflix_recommender/recommendation.py`](src/netflix_recommender/recommendation.py) · **CLI:** `python -m netflix_recommender recommendation`
+### 4.3 · Behavioural personas: clustering with a production caveat
+
+<p align="center">
+  <img src="docs/assets/presentation-07.png" alt="Clustering headline slide" width="90%">
+</p>
+
+<p align="center">
+  <img src="outputs/04_clustering/user_kmeans_pca.png" alt="User PCA + K-Means" width="85%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/presentation-08.png" alt="Casual vs power user deep dive" width="90%">
+</p>
+
+<p align="center">
+  <img src="outputs/04_clustering/movie_kmeans_pca.png" alt="Movie clusters PCA" width="85%">
+</p>
+
+| Algorithm | Silhouette (users) | Why we still pick K-Means for CRM overlays |
+|-----------|---------------------|--------------------------------------------|
+| DBSCAN | **0.6357** | Leaves many users as noise — unacceptable when every subscriber needs a playbook |
+| K-Means (k≈4–10 sweep) | 0.28–0.xx | **Hard assignment everywhere** beats purity when Pinpoint-like journeys need completeness |
+| Hierarchical Ward | Lower | Computational + interpretability trade-offs |
+
+Scores: [`outputs/04_clustering/algorithm_comparison.csv`](outputs/04_clustering/algorithm_comparison.csv) · Implementation: [`clustering_job.py`](src/netflix_recommender/clustering_job.py).
+
+### 4.4 · RFM: translate ML geometry into stakeholder language
+
+<p align="center">
+  <img src="docs/assets/presentation-09.png" alt="RFM bridge to business actions" width="90%">
+</p>
+
+<p align="center">
+  <img src="outputs/05_rfm_analysis/rfm_segment_sizes.png" alt="Segment sizes histogram" width="85%">
+</p>
+
+<p align="center">
+  <img src="outputs/05_rfm_analysis/rfm_vs_clustering_heatmap.png" alt="RFM vs clusters heatmap" width="85%">
+</p>
+
+| Dimension | Meaning on this dataset |
+|-----------|--------------------------|
+| R | Days since last rating (reference **2005-12-31**) |
+| F | Rating counts |
+| M | Mean rating (**proxy**, not dollar spend — explicit in deck) |
+
+The heatmap resolves the “so what?”: **Lost / Need Attention** overwhelmingly align with Casual Users — aligning **churn narratives** with **coverage-first clustering**. Implementation: [`rfm.py`](src/netflix_recommender/rfm.py).
+
+### 4.5 · Churn-ready path: reproducible pipeline + cloud-shaped outputs
+
+Operational courses and employers ask for artefacts, not anecdotes. **`pipeline.py`** runs end-to-end from [`config/churn_pipeline.yaml`](config/churn_pipeline.yaml): features use ratings **before** \(T_{\text{end}} - \text{horizon}\); labels flag **silent periods** afterwards — leakage-aware churn proxy aligned with coursework rubrics.
+
+| Artifact per run (`artifacts/<run_id>/`) | Role |
+|---|---|
+| `processed_dataset.parquet` | Tables for grading / audit |
+| `model.joblib` / `metrics.json` / `roc_curve.png` | Model + ROC evidence |
+| `config_resolved.yaml` | Exactly what shipped |
+| S3 uploads (optional `boto3`) | ECS/Fargate + task-role pattern |
+
+Docker: [`Dockerfile`](Dockerfile). Fargate / task definition scaffolding: [`docs/fargate.md`](docs/fargate.md), [`infra/ecs-task-definition.example.json`](infra/ecs-task-definition.example.json).
+
+Quick commands:
+
+```bash
+python pipeline.py --config config/churn_pipeline.yaml
+docker build -t churn-pipeline . && docker run --rm …   # see runbook §6
+```
+
+Tests & lint (`PYTHONPATH=src pytest tests/`, `ruff`, `pylint` with `[tool.pylint]` in [`pyproject.toml`](pyproject.toml)) keep the churn package reviewable independently of the exploratory CLIs.
+
+### 4.6 · Closing the loop: conclusions + AWS blueprint
+
+<p align="center">
+  <img src="docs/assets/presentation-10.png" alt="Summary and futures" width="90%">
+</p>
+
+<p align="center">
+  <img src="docs/assets/aws-customer-360-architecture.png" alt="AWS Customer 360 conceptual map" width="100%">
+</p>
+
+<p align="center"><em>Reference mapping: ingestion → medallion buckets → warehousing/BI → SageMaker-era training & monitoring → Pinpoint / Connect style activation.</em></p>
+
+| Offline module | Repo file | Typical AWS analogue |
+|----------------|-----------|-----------------------|
+| ETL → Parquet | [`data_io.py`](src/netflix_recommender/data_io.py) | Glue + S3 bronze/silver |
+| EDA aggregates | [`eda.py`](src/netflix_recommender/eda.py) | Athena / Studio notebooks |
+| Feature-heavy jobs | [`clustering_job.py`](src/netflix_recommender/clustering_job.py) | SageMaker Processing |
+| Experimentation-heavy training | [`recommendation.py`](src/netflix_recommender/recommendation.py) | Training jobs / tuning |
+| Artefact-heavy pipeline | [`src/churn_pipeline/`](src/churn_pipeline/), [`pipeline.py`](pipeline.py) | Step Functions · ECR/Fargate |
+| Multi-command CLI orchestration | [`__main__.py`](src/netflix_recommender/__main__.py) | SageMaker Pipelines / Dagster etc. |
+
+This is an **engineering map**, not a claim that each AWS box is wired in CI from this repo.
 
 ---
 
-### Clustering: finding user and movie archetypes
+## · Cross-functional signal (portfolio framing)
 
-<p align="center">
-  <img src="docs/assets/presentation-07.png" alt="Clustering — User and Movie Segments" width="90%">
-</p>
-
-Recommendations tell us *what* to show a user. Clustering tells us *who* the user is — their archetype. Five engineered features per user (rating count, mean rating, std dev, most common rating, 5-star percentage, days active) are standardized and reduced to 3D via PCA for clustering, then projected to 2D for visualization. Three algorithms are compared — K-Means, Agglomerative Hierarchical, and DBSCAN — with silhouette score selecting the best configuration.
-
-#### User clusters — Casual vs. Power Users
-
-<p align="center">
-  <img src="outputs/04_clustering/user_kmeans_pca.png" alt="User Clusters — K-Means k=2, PCA 2D projection" width="85%">
-</p>
-
-<p align="center">
-  <img src="docs/assets/presentation-08.png" alt="Clustering — User Segment Deep Dive" width="90%">
-</p>
-
-The PCA projection reveals a clean separation: **Casual Users** (Cluster 0, blue) form the large majority — they rate fewer movies, show more variability, and some extreme outliers appear in the high-PC2 region (ultra-sparse one-time raters). **Power Users** (Cluster 1, orange) cluster tightly to the right along PC1, which loads heavily on rating count and activity span — these are the platform's most engaged audience. The clear geometric separation validates that the feature engineering captured meaningful behavioral structure.
-
-Key findings from the slide above: about 87% of users are Casual Users with lower mean ratings and higher activity variance; Power Users have higher mean ratings (mean ~3.8 vs ~3.4), rate more movies, and are more active. These two archetypes call for fundamentally different recommendation strategies — Power Users benefit from exploration-heavy long-tail suggestions; Casual Users need safer, high-confidence mainstream picks.
-
-#### Movie clusters — four distinct content archetypes
-
-<p align="center">
-  <img src="outputs/04_clustering/movie_kmeans_pca.png" alt="Movie Clusters — K-Means k=4, PCA 2D projection" width="85%">
-</p>
-
-Movie features include rating count, mean rating, std deviation of ratings, skewness, and year of release. K-Means with k=4 (selected by silhouette) identifies four archetypal content groups:
-
-| Cluster | Archetype | Characteristics |
-|---------|-----------|-----------------|
-| 0 — Blockbusters | High-volume mainstream | Many ratings, moderate-to-high mean, low variance |
-| 1 — Niche Favorites | Low-volume, high quality | Fewer ratings, high mean, self-selected engaged audience |
-| 2 — Polarizing Films | Divisive content | High std dev and skewness, opinion-splitting |
-| 3 — Forgotten Films | Low-engagement catalog | Very few ratings, moderate mean — the long tail |
-
-#### Algorithm comparison — and why K-Means was chosen
-
-Three clustering algorithms were evaluated on the same feature set:
-
-| Method | Clusters | Silhouette score |
-|--------|----------|-----------------|
-| DBSCAN | 5 | **0.6357** |
-| K-Means | 4 | 0.2844 |
-| Hierarchical (Ward) | 4 | 0.2391 |
-
-DBSCAN wins on silhouette by a wide margin — but K-Means was chosen anyway. The reason is a production reality: DBSCAN designates a large fraction of users as *noise* (no cluster assignment), which is not usable in a CRM or activation context where every user must belong to a segment. Silhouette measures cluster *purity*, not *coverage*. K-Means guarantees a hard assignment for all 480K users, making it directly actionable. This is the kind of trade-off — interpretability and full coverage over raw cluster purity — that separates analytical modeling from production ML design.
-
-Full scores: [`outputs/04_clustering/algorithm_comparison.csv`](outputs/04_clustering/algorithm_comparison.csv)
-
-**Implementation:** [`src/netflix_recommender/clustering_job.py`](src/netflix_recommender/clustering_job.py) · **CLI:** `python -m netflix_recommender clustering`
+| Skill | Evidence |
+|-------|----------|
+| Data engineering | 100M-row ETL hygiene, parquet contract |
+| Statistical thinking | Tail + bias narratives tied to modelling |
+| Classical ML depth | Surprise SVD hybrids, PCA clustering, logistic/RF churn |
+| Biz translation | RFM + heatmaps for activation |
+| MLOps patterns | YAML config, Dockerfile, ECS JSON, boto3 uploads |
+| Communication | Narrated slide deck excerpts embedded inline |
 
 ---
 
-### RFM segmentation: from behavioral data to business action
-
-<p align="center">
-  <img src="docs/assets/presentation-09.png" alt="RFM Segmentation — From Insights to Action" width="90%">
-</p>
-
-RFM (Recency-Frequency-Monetary) is the bridge between ML output and business decision-making. Each user receives three quintile scores (1–5) derived directly from their rating behavior:
-
-| Dimension | Definition in this context | Why it matters |
-|-----------|---------------------------|----------------|
-| **R — Recency** | Days since last rating (ref: 2005-12-31) | Recent users are more likely to still be active subscribers |
-| **F — Frequency** | Total number of ratings given | Frequent raters are more engaged and more predictable |
-| **M — Monetary** | Average rating score (proxy for engagement quality) | High-M users leave higher-quality signal and respond better to premium content |
-
-#### Segment distribution across 480K users
-
-<p align="center">
-  <img src="outputs/05_rfm_analysis/rfm_segment_sizes.png" alt="RFM Segment Sizes — 480K users across 8 business cohorts" width="85%">
-</p>
-
-The largest segment is **Big Spenders** (141,308 users) — high average raters who may be a platform's most content-positive audience. **Need Attention** (79,045) and **Lost Customers** (52,544) together represent ~27% of the user base: users who were once engaged but have drifted. This is the primary target for re-engagement campaigns.
-
-#### Cross-tabulation: RFM meets clustering
-
-<p align="center">
-  <img src="outputs/05_rfm_analysis/rfm_vs_clustering_heatmap.png" alt="RFM Segment × User Cluster Heatmap" width="85%">
-</p>
-
-This heatmap is the strategic punchline: it cross-references RFM business segments with behavioral clusters. The signal is strong and clean:
-
-- **Best Customers and Loyal Customers** are overwhelmingly **Power Users** (69–72%) — the two views of value agree.
-- **Big Spenders** skew heavily Power User (85%) — high engagement translates directly to both RFM and cluster membership.
-- **At Risk, Lost Customers, and Need Attention** are dominated by **Casual Users** (81–95%) — these are users who never developed deep platform habits.
-- **Lost Cheap Customers** are almost entirely Casual Users (91%) — low engagement *and* low recency, the hardest cohort to win back.
-
-This cross-tab is actionable: rather than treating all 141K "Big Spenders" identically, a data team can prioritize the 15% who are Casual Users — they have high engagement value but fragile habits, making them prime targets for onboarding-style re-engagement before they churn permanently.
-
-**Implementation:** [`src/netflix_recommender/rfm.py`](src/netflix_recommender/rfm.py) · **CLI:** `python -m netflix_recommender rfm`
-
----
-
-### Conclusions and future directions
-
-<p align="center">
-  <img src="docs/assets/presentation-10.png" alt="Conclusions and Future Directions" width="90%">
-</p>
-
-The project demonstrates that behavioral data — even a simple 5-star rating — contains enough signal to: (1) build a competitive recommender that matches benchmark-era accuracy, (2) surface distinct user and content archetypes, and (3) translate those archetypes into business-actionable CRM segments with clear treatment strategies. The next steps — streaming freshness, cold-start policy, fairness slices, monitored production endpoints — map directly to the AWS architecture below.
-
----
-
-## Act III — Production reality: the AWS blueprint
-
-<p align="center">
-  <img src="docs/assets/aws-customer-360-architecture.png" alt="AWS Customer 360 Architecture — Churn Prediction and Proactive Engagement" width="100%">
-</p>
-
-<p align="center"><em>End-to-end AWS Customer 360 Platform: sources → ingestion → S3 four-zone medallion lake → processing & enrichment → data warehouse & BI → ML/AI (SageMaker Pipelines, Feature Store, Model Monitor, inference + cache) → apps & activation (Connect, Amplify, Pinpoint, API Gateway). Cross-cutting security, governance, observability, and IaC/CI-CD at the foundation.</em></p>
-
-### Connecting this repository to production AWS — explicitly
-
-Every step in the offline Python pipeline has a direct production counterpart. This table makes that connection explicit:
-
-| What I built here | Code | Production AWS equivalent |
-|-------------------|------|---------------------------|
-| Parse raw files → Parquet with temporal features | [`data_io.py`](src/netflix_recommender/data_io.py) | **AWS Glue** ETL jobs landing raw data into **S3 Bronze zone**; **AWS Glue Crawler** cataloging schemas |
-| Parquet storage with partitioning | `data/ratings.parquet` | **S3 Silver zone** (cleaned, columnar, partitioned by date); **AWS Lake Formation** for access control |
-| EDA summary statistics and distributions | [`eda.py`](src/netflix_recommender/eda.py) | **Amazon Athena** ad-hoc SQL over S3; **SageMaker Studio** notebooks for interactive exploration |
-| Feature engineering (user/movie aggregates) | [`clustering_job.py`](src/netflix_recommender/clustering_job.py) | **SageMaker Processing Jobs** (Spark/scikit-learn containers); results written to **S3 Gold zone** |
-| SVD hyperparameter tuning (3-fold CV) | [`recommendation.py`](src/netflix_recommender/recommendation.py) | **SageMaker Automatic Model Tuning** (Bayesian optimization over factors, epochs, learning rate) |
-| SVD + KNN hybrid model training | [`recommendation.py`](src/netflix_recommender/recommendation.py) | **SageMaker Training Jobs** (spot instances for cost efficiency); **SageMaker Experiments** for run tracking |
-| Probe RMSE evaluation | `outputs/03_recommendation/` | **SageMaker Model Monitor** continuous evaluation; **CloudWatch** metrics and alarms for drift detection |
-| Model artifacts (`.pkl` files) | `outputs/03_recommendation/*.pkl` | **SageMaker Model Registry** with approval workflows; versioned artifacts in **S3** |
-| K-Means clustering + silhouette selection | [`clustering_job.py`](src/netflix_recommender/clustering_job.py) | **SageMaker Processing Jobs**; cluster assignments as features in **SageMaker Feature Store** (offline store) |
-| Cluster assignment per user | `outputs/04_clustering/user_clusters.parquet` | **SageMaker Feature Store** (online store) for low-latency serving at inference time |
-| RFM scoring and segment assignment | [`rfm.py`](src/netflix_recommender/rfm.py) | **Amazon Redshift** for windowed aggregation at scale; results to **DynamoDB** for real-time lookup |
-| CRM segment cross-tab analysis | `outputs/05_rfm_analysis/` | **Amazon QuickSight** dashboards for business stakeholders; **Redshift Spectrum** for BI queries over S3 |
-| Recommendation serving | `recommendation.py` → `predict()` | **SageMaker Real-Time Endpoints** behind **API Gateway**; **ElastiCache (Redis)** for inference caching |
-| Segment-driven user activation | (design artifact) | **Amazon Pinpoint** for email/push campaigns; **Amazon Connect** for voice outreach; **AWS Amplify** for in-app personalization |
-| CLI pipeline orchestration | [`__main__.py`](src/netflix_recommender/__main__.py) | **SageMaker Pipelines** (DAG of preprocessing → training → evaluation → registration); **AWS Step Functions** for cross-service orchestration |
-| Reproducible Python package | `pyproject.toml` + `requirements.txt` | **Docker containers** in **Amazon ECR**; **AWS CDK / CloudFormation** for infrastructure-as-code deployment |
-
-This mapping is not hypothetical. Every architectural decision in the AWS diagram — the medallion lake zones, the Feature Store split between offline and online, the Model Monitor for drift, the Pinpoint activation — corresponds to a real problem that appears in the offline pipeline and that would require exactly that AWS service to solve at production scale.
-
----
-
-## Skills signal — why this portfolio spans DS, AI Engineering, and MLE
-
-| Skill area | Where it shows in this repo |
-|------------|----------------------------|
-| **Data engineering at scale** | ETL of 100M+ records from raw text → columnar Parquet with temporal features; sparse matrix construction for KNN |
-| **Statistical modeling** | EDA with long-tail distribution analysis; positivity bias identification; rating sparsity characterization |
-| **Machine learning** | SVD matrix factorization with cross-validated hyperparameter tuning; hybrid residual correction; silhouette-guided clustering (K-Means, Agglomerative, DBSCAN) |
-| **MLOps mindset** | Model card with intended use, limitations, fairness caveats, and data provenance; probe RMSE as a reproducible evaluation contract |
-| **Business analytics** | RFM segmentation translating behavioral signals into actionable CRM cohorts; cross-tab analysis connecting ML clusters to business segments |
-| **Cloud architecture** | AWS Solutions Architect–style Customer 360 reference design mapping every offline component to a production AWS service |
-| **Software engineering** | Installable Python package with CLI, editable install, pinned dependencies, modular source layout, and a reproducible notebook wrapper |
-| **Communication** | Visual narrative across 10-slide presentation deck; data storytelling from business problem through conclusions |
-
----
-
-## Stack
+## · Stack snapshot
 
 | Layer | Choices |
 |-------|---------|
 | Runtime | Python **3.11** |
-| Data | **pandas**, **NumPy**, **PyArrow** (Parquet), **tqdm** |
-| ML | **scikit-learn**, **SciPy** (sparse matrices), **scikit-surprise** (SVD/NMF) |
-| Visualization | **Matplotlib**, **Seaborn**, **Plotly** (interactive 3D/treemap) |
-| Notebook | **Jupyter** · [`offline_pipeline.ipynb`](offline_pipeline.ipynb) |
-| Cloud reference | **AWS** (architecture design; not deployed from this repo) |
+| Tables | pandas, NumPy, PyArrow, tqdm |
+| Modelling | scikit-learn, SciPy sparse, **scikit-surprise** (recommender path) |
+| Viz | Matplotlib, Seaborn, Plotly (RFM 3D, optional HTML) |
+| Notebooks | [`offline_pipeline.ipynb`](offline_pipeline.ipynb) |
+| Churn automation | **`pipeline.py`**, **PyYAML**, **joblib**, **boto3**, **pytest**, **ruff/pylint** |
 
-Pinned dependencies: [`requirements.txt`](requirements.txt).
+Pinned versions: [`requirements.txt`](requirements.txt). Optional lint/test extras: `pip install -e ".[dev]"`.
 
 ---
 
-## Get started
+## · Runbook — research stack
 
 ```bash
-# 1. Create and activate a virtual environment
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt && pip install -e .
 
-# 2. Install dependencies and the package
-pip install -r requirements.txt
-pip install -e .
+# After placing Kaggle Netflix Prize assets under ./dataset/
+python -m netflix_recommender data-loading
+python -m netflix_recommender eda
+python -m netflix_recommender recommendation   # expensive on full corpus
+python -m netflix_recommender clustering
+python -m netflix_recommender rfm              # --no-plotly-html inside CI/headless
 ```
 
-Download the [Netflix Prize dataset](https://www.kaggle.com/datasets/netflix-inc/netflix-prize-data) into `./dataset/`, then run the full pipeline:
+Iterate faster:
 
 ```bash
-python -m netflix_recommender data-loading          # ETL → Parquet
-python -m netflix_recommender eda                   # Summary statistics
-python -m netflix_recommender recommendation        # Hybrid recommender (long-running on full data)
-python -m netflix_recommender clustering            # K-Means + Hierarchical + DBSCAN
-python -m netflix_recommender rfm                   # RFM segments + cross-tab
-```
-
-Key CLI flags for faster iteration:
-
-```bash
-# Recommender: skip NMF comparison and KNN residual while tuning
 python -m netflix_recommender recommendation --skip-nmf --skip-hybrid --tune-sample-n 50000
-
-# RFM: skip Plotly HTML output (faster)
-python -m netflix_recommender rfm --no-plotly-html
 ```
 
-`dataset/` and `data/` are gitignored (volume + dataset licence terms).
+`dataset/` and `data/` stay **gitignored** (licence volume + reproducibility hygiene).
 
 ---
+
+## · Runbook — churn proxy automation
 
 <details>
-<summary><strong>Technical appendix — hybrid model card</strong></summary>
+<summary><strong>Expand: env vars, tests, Docker, ECS evidence</strong></summary>
 
-| Field | Value |
-|-------|-------|
-| Name | `svd-item-residual-hybrid` |
-| Type | Explicit-feedback collaborative filtering |
-| Libraries | scikit-surprise (SVD), SciPy sparse (residual matrix), scikit-learn (cosine similarity) |
-| Output | Predicted rating in [1, 5] for a (user, item) pair |
-| Headline metric | **Probe RMSE 0.9491** (vs Cinematch ~0.9525, contest era) |
+Outputs per run:
 
-**Concept:** `ŷ = clip(ŷ_SVD + α · r_KNN, 1, 5)`, α = 0.3; residual KNN on top-1,000 movies by rating volume, 40 nearest neighbors, cosine similarity.
+| Path | Meaning |
+|------|---------|
+| `preprocessed_ratings.parquet` | Typed + cleaned ingest |
+| `processed_dataset.parquet` | Labels + engineered features |
+| `model.joblib` / `test_holdout.npz` | Model bundle + stratified split |
+| `metrics.json` / `roc_curve.png` | Evaluation outputs for model quality tracking |
+| `config_resolved.yaml` | Exactly what executed |
 
-**Intended use:** Offline baseline on the Netflix Prize official probe set; hybrid reference architecture for matrix factorization + item-item residual correction.
+Configure YAML (split, horizons, model type, buckets). Export **`S3_BUCKET`** (non-empty) to override YAML. Prefer **IAM roles** over long-lived keys. Enable uploads with **`s3.upload_enabled: true`**.
 
-**Not for:** Implicit-only feedback, cold-start scenarios without an explicit policy, or high-stakes automated decisions without re-evaluation on your own data and time period.
+Runtime overrides (optional, no code edits needed):
 
-**Data:** Train split = training files minus probe → `data/train.parquet`; evaluation = probe with ratings → `data/probe_with_ratings.parquet`. Dataset licence (Kaggle/Netflix) is separate from this repo's MIT licence.
+| Variable | Effect |
+|---|---|
+| `S3_BUCKET` | Overrides `s3.bucket` |
+| `S3_UPLOAD_ENABLED` | Overrides `s3.upload_enabled` (`true/false`, `1/0`) |
+| `S3_PREFIX` | Overrides `s3.prefix` |
 
-**Known limitations:** Re-identification risk on sparse rating records (treat customer IDs as sensitive). Popularity bias in the residual path — a production system should add diversity and freshness post-filtering. No fairness slices on protected attributes unless external demographic fields are joined. SVD tuning used a 50k-row subsample for speed; NMF is comparison-only; the corpus ends in 2005 and does not reflect streaming-era behavior.
+Quality gates:
 
-**References:** [Mitchell et al., Model Cards (2019)](https://arxiv.org/abs/1810.03993) · [scikit-surprise](https://surpriselib.com/) · Netflix Prize via Kaggle.
+```bash
+PYTHONPATH=src pytest tests/
+ruff check src/churn_pipeline pipeline.py tests
+pylint src/churn_pipeline pipeline.py --rcfile=pyproject.toml
+```
+
+Docker illustration:
+
+```bash
+docker build -t churn-pipeline .
+docker run --rm \
+  -v "$(pwd)/data:/app/data:ro" \
+  -v "$(pwd)/dataset:/app/dataset:ro" \
+  -v "$(pwd)/artifacts:/app/artifacts" \
+  churn-pipeline
+
+# Run tests inside the same image
+docker run --rm churn-pipeline pytest -q tests
+```
+
+Operational evidence: CloudWatch logs after Fargate runs should emit `Uploaded: s3://…` lines from [`s3_upload.py`](src/churn_pipeline/s3_upload.py).
 
 </details>
 
 ---
 
-## Licence
+## · Production readiness map
 
-Code: [MIT](LICENSE). **Dataset:** Kaggle / Netflix terms; not redistributed in this repository.
+| Capability | Where implemented |
+|---|---|
+| Configuration management | [`config/churn_pipeline.yaml`](config/churn_pipeline.yaml), env overrides in [`config.py`](src/churn_pipeline/config.py) |
+| Modular pipeline steps | [`ingestion.py`](src/churn_pipeline/ingestion.py), [`preprocess.py`](src/churn_pipeline/preprocess.py), [`features.py`](src/churn_pipeline/features.py), [`train.py`](src/churn_pipeline/train.py), [`evaluate.py`](src/churn_pipeline/evaluate.py), [`artifacts.py`](src/churn_pipeline/artifacts.py) |
+| Single-command orchestration | [`pipeline.py`](pipeline.py) |
+| Artifact management | run-scoped outputs under `artifacts/<run_id>/` + config snapshot + metrics + ROC |
+| AWS S3 integration | [`s3_upload.py`](src/churn_pipeline/s3_upload.py), bucket/prefix from YAML or env |
+| Dockerization | [`Dockerfile`](Dockerfile), default command runs `pipeline.py` |
+| Unit testing | [`tests/`](tests): config, preprocess, features, train (9 tests total, happy/unhappy paths) |
+| Code quality | `ruff`, `pylint`, logging + explicit exception handling in [`pipeline.py`](pipeline.py) |
+| ECS/Fargate | [`infra/ecs-task-definition.example.json`](infra/ecs-task-definition.example.json), run guide in [`docs/fargate.md`](docs/fargate.md) |
+
+<details>
+<summary><strong>Hybrid recommender — model card (concise)</strong></summary>
+
+| Field | Detail |
+|-------|--------|
+| Name | `svd-item-residual-hybrid` |
+| Intended use | Netflix Prize-era explicit-feedback benchmark comparisons |
+| Headline metric | **Probe RMSE 0.9491** (vs Cinematch ~0.9525 historical reference) |
+| Libraries | Surprise SVD · SciPy sparse residuals · cosine KNN overlay |
+| Not for | Modern implicit streaming logs, unattended production without refreshed policy/fairness review |
+
+Ground truth splits follow contest semantics implemented in-repo; licences remain with Kaggle/Netflix. See also [Model Cards](https://arxiv.org/abs/1810.03993).
+
+</details>
 
 ---
 
-## Acknowledgements
+## · Naming the repo (optional, not blocking)
 
+<<<<<<< Updated upstream
 This project is built upon [group work](https://github.com/eason034056/netflix-prize-data-mining-project) completed together with Eason Wu, Eric Wu, Kun-Yu Lee, and Xinqi Huang.
+=======
+Folder **`ml-systems-portfolio`** is a sensible umbrella when you showcase several production-oriented ML systems. Two refinements recruiters like:
+
+| Option | When it helps |
+|--------|----------------|
+| **`netflix-behavior-intelligence`** (repo rename) | Single flagship story across recommender + RFM + churn proxy |
+| **Keep umbrella + subtitle** (`ml-systems-portfolio` README title already reframed) | You plan more non-Netflix repos in the same org |
+
+Rename only if README + CV + GitHub “About” all match — consistency beats cleverness.
+
+---
+
+## · Licence · Acknowledgements
+
+Code is [MIT](LICENSE). Dataset terms remain with Netflix/Kaggle hosts.
+
+Companion analysis grew from collaborative [Netflix Prize mining work](https://github.com/eason034056/netflix-prize-data-mining-project) with **Eason Wu**, Eric Wu, Kun-Yu Lee, and Xinqi Huang.
+>>>>>>> Stashed changes

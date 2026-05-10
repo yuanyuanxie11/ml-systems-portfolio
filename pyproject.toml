@@ -14,5 +14,38 @@ authors = [
 ]
 keywords = ["recommendation-systems", "collaborative-filtering", "clustering", "rfm-segmentation", "machine-learning"]
 
+[project.optional-dependencies]
+dev = ["ruff==0.7.2", "pylint==3.3.1"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "."]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/churn_pipeline/evaluate.py" = ["E402"]
+
+[tool.pylint.main]
+max-line-length = 100
+ignore-paths = ["tests"]
+
+[tool.pylint."messages control"]
+disable = [
+    "import-outside-toplevel",
+    "wrong-import-order",
+    "wrong-import-position",
+    "too-many-locals",
+    "invalid-name",
+    "broad-exception-caught",
+    "missing-function-docstring",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -25,6 +25,9 @@ env/
 .env
 .envrc
 
+# Pipeline runs (generated per execution)
+artifacts/
+
 # --- Jupyter ---
 .ipynb_checkpoints/
 *.nbconvert.ipynb
